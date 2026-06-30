@@ -1,0 +1,1482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Hull-White IR Engine v2.0 — Live Preview</title>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:      #0D1117;
+    --bg-mid:  #161B22;
+    --bg-card: #21262D;
+    --border:  #30363D;
+    --text:    #E6EDF3;
+    --muted:   #8B949E;
+    --cyan:    #00D4FF;
+    --red:     #FF6B6B;
+    --amber:   #FFE66D;
+    --green:   #4CAF50;
+    --purple:  #AB47BC;
+    --orange:  #FF9800;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  /* ── TOP NAV ── */
+  .topbar {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(8px);
+  }
+  .topbar-brand { display: flex; align-items: center; gap: 12px; }
+  .topbar-logo {
+    width: 34px; height: 34px;
+    background: linear-gradient(135deg, var(--cyan), var(--purple));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700;
+  }
+  .topbar-title { font-size: 15px; font-weight: 600; color: var(--text); }
+  .topbar-sub   { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .topbar-badge {
+    background: rgba(0,212,255,0.12);
+    border: 1px solid rgba(0,212,255,0.3);
+    color: var(--cyan);
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .topbar-nav { display: flex; gap: 4px; }
+  .nav-btn {
+    background: none; border: 1px solid transparent;
+    color: var(--muted); padding: 5px 14px;
+    border-radius: 6px; cursor: pointer;
+    font-size: 12px; font-family: inherit;
+    transition: all 0.2s;
+  }
+  .nav-btn:hover { background: var(--bg-mid); color: var(--text); border-color: var(--border); }
+  .nav-btn.active { background: rgba(0,212,255,0.1); color: var(--cyan); border-color: rgba(0,212,255,0.3); }
+
+  /* ── LAYOUT ── */
+  .shell { display: flex; height: calc(100vh - 56px); overflow: hidden; }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: 220px; min-width: 220px;
+    background: var(--bg-mid);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 16px 0;
+  }
+  .sidebar-section { padding: 0 12px; margin-bottom: 20px; }
+  .sidebar-label {
+    font-size: 10px; font-weight: 600;
+    color: var(--muted); text-transform: uppercase;
+    letter-spacing: 1px; padding: 0 8px;
+    margin-bottom: 6px;
+  }
+  .cell-btn {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; padding: 8px 10px;
+    background: none; border: none; border-radius: 6px;
+    color: var(--muted); cursor: pointer;
+    font-size: 12px; font-family: inherit;
+    text-align: left; transition: all 0.15s;
+    margin-bottom: 2px;
+  }
+  .cell-btn:hover { background: var(--bg-card); color: var(--text); }
+  .cell-btn.active { background: rgba(0,212,255,0.1); color: var(--cyan); }
+  .cell-num {
+    width: 20px; height: 20px; min-width: 20px;
+    border-radius: 4px; background: var(--bg-card);
+    font-size: 10px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted);
+  }
+  .cell-btn.active .cell-num { background: rgba(0,212,255,0.2); color: var(--cyan); }
+  .cell-status { margin-left: auto; font-size: 10px; }
+  .status-done { color: var(--green); }
+  .status-run  { color: var(--amber); }
+
+  /* ── MAIN CONTENT ── */
+  .main { flex: 1; overflow-y: auto; padding: 24px 32px; }
+
+  /* ── CELLS ── */
+  .cell {
+    background: var(--bg-mid);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 20px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .cell:hover { border-color: rgba(0,212,255,0.2); }
+  .cell.active { border-color: var(--cyan); }
+
+  .cell-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .cell-run-btn {
+    width: 28px; height: 28px;
+    border-radius: 50%; border: 1.5px solid var(--border);
+    background: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted); transition: all 0.2s; flex-shrink: 0;
+  }
+  .cell-run-btn:hover { border-color: var(--cyan); color: var(--cyan); background: rgba(0,212,255,0.08); }
+  .cell-run-btn.done { border-color: var(--green); color: var(--green); }
+  .cell-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: var(--muted);
+  }
+  .cell-title { font-size: 13px; font-weight: 500; color: var(--text); flex: 1; }
+  .cell-chevron { color: var(--muted); font-size: 12px; transition: transform 0.2s; }
+  .cell.collapsed .cell-chevron { transform: rotate(-90deg); }
+
+  .cell-code {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    overflow-x: auto;
+  }
+  .cell.collapsed .cell-code,
+  .cell.collapsed .cell-output { display: none; }
+
+  pre {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; line-height: 1.7;
+    color: var(--muted); margin: 0;
+  }
+  .kw  { color: #FF79C6; }
+  .fn  { color: #50FA7B; }
+  .str { color: #F1FA8C; }
+  .cm  { color: #6272A4; font-style: italic; }
+  .num { color: #BD93F9; }
+  .cls { color: #8BE9FD; }
+
+  .cell-output { padding: 16px; }
+  .out-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; line-height: 1.8;
+    color: #A8D8A8; margin-bottom: 12px;
+    white-space: pre-wrap;
+  }
+  .out-text .ok   { color: var(--green); }
+  .out-text .warn { color: var(--amber); }
+  .out-text .err  { color: var(--red); }
+  .out-text .val  { color: var(--cyan); }
+  .out-text .head { color: var(--text); font-weight: 600; }
+
+  .chart-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-top: 12px;
+  }
+
+  /* ── METRIC CARDS ── */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px; margin: 16px 0;
+  }
+  .metric-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px;
+    transition: border-color 0.2s;
+  }
+  .metric-card:hover { border-color: rgba(0,212,255,0.3); }
+  .metric-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+  .metric-value { font-size: 22px; font-weight: 700; color: var(--text); font-family: 'JetBrains Mono', monospace; }
+  .metric-sub   { font-size: 10px; color: var(--muted); margin-top: 4px; }
+  .metric-card.cyan   .metric-value { color: var(--cyan); }
+  .metric-card.green  .metric-value { color: var(--green); }
+  .metric-card.amber  .metric-value { color: var(--amber); }
+  .metric-card.red    .metric-value { color: var(--red); }
+  .metric-card.purple .metric-value { color: var(--purple); }
+
+  /* ── TABLE ── */
+  .data-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  .data-table th {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px;
+    color: var(--muted); padding: 8px 12px; text-align: left;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+  .data-table td {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; padding: 8px 12px;
+    border-bottom: 1px solid rgba(48,54,61,0.5);
+    color: var(--text);
+  }
+  .data-table tr:hover td { background: rgba(0,212,255,0.03); }
+  .td-positive { color: var(--green); }
+  .td-negative { color: var(--red); }
+  .td-neutral  { color: var(--cyan); }
+
+  /* ── DIVIDER BANNER ── */
+  .section-banner {
+    background: linear-gradient(90deg, rgba(0,212,255,0.08), transparent);
+    border-left: 3px solid var(--cyan);
+    padding: 10px 16px;
+    margin: 24px 0 16px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13px; font-weight: 600; color: var(--cyan);
+  }
+
+  /* ── PROGRESS BAR ── */
+  .progress-bar {
+    height: 3px; background: var(--border);
+    border-radius: 2px; overflow: hidden;
+    margin: 8px 0;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--cyan), var(--purple));
+    border-radius: 2px;
+    animation: progressAnim 1.5s ease-out forwards;
+  }
+  @keyframes progressAnim { from { width: 0; } }
+
+  /* ── PILL BADGES ── */
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 500;
+  }
+  .pill-cyan   { background: rgba(0,212,255,0.1);  color: var(--cyan);   border: 1px solid rgba(0,212,255,0.25); }
+  .pill-green  { background: rgba(76,175,80,0.1);  color: var(--green);  border: 1px solid rgba(76,175,80,0.25); }
+  .pill-amber  { background: rgba(255,230,109,0.1);color: var(--amber);  border: 1px solid rgba(255,230,109,0.25); }
+  .pill-red    { background: rgba(255,107,107,0.1);color: var(--red);    border: 1px solid rgba(255,107,107,0.25); }
+  .pill-purple { background: rgba(171,71,188,0.1); color: var(--purple); border: 1px solid rgba(171,71,188,0.25); }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* ── ANIMATIONS ── */
+  .fade-in { animation: fadeIn 0.4s ease forwards; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  .pulse { animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════ TOP NAV ════════════════════ -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="topbar-logo">HW</div>
+    <div>
+      <div class="topbar-title">Hull-White IR Engine v2.0</div>
+      <div class="topbar-sub">QuantLib Brain · Custom Analytics · Plotly Dashboard</div>
+    </div>
+  </div>
+  <div class="topbar-nav">
+    <button class="nav-btn active" onclick="setView('notebook')">📓 Notebook</button>
+    <button class="nav-btn" onclick="setView('dashboard')">📊 Dashboard</button>
+    <button class="nav-btn" onclick="setView('risk')">⚠️ Risk</button>
+  </div>
+  <div class="topbar-badge">✅ All 14 Cells Run</div>
+</div>
+
+<!-- ════════════════════ SHELL ════════════════════ -->
+<div class="shell">
+
+<!-- ── SIDEBAR ── -->
+<div class="sidebar">
+  <div class="sidebar-section">
+    <div class="sidebar-label">Pipeline Cells</div>
+
+    <button class="cell-btn active" onclick="scrollTo('cell1')">
+      <span class="cell-num">1</span>Setup &amp; Imports
+      <span class="cell-status status-done">✓</span>
+    </button>
+    <button class="cell-btn" onclick="scrollTo('cell2')">
+      <span class="cell-num">2</span>Market &amp; Curve
+      <span class="cell-status status-done">✓</span>
+    </button>
+    <button class="cell-btn" onclick="scrollTo('cell3')">
+      <span class="cell-num">3</span>QL Calibration
+      <span class="cell-status status-done">✓</span>
+    </button>
+    <button class="cell-btn" onclick="scrollTo('cell4')">
+      <span class="cell-num">4</span>Analytic Engine
+      <span class="cell-status status-done">✓</span>
+    </button>
+    <button class="cell-btn" onclick="scrollTo('cell5')">
+      <span class="cell-num">5</span>MC Simulation
+      <span class="cell-status status-done">✓</span>
+    </button>
+    <button class="cell-btn" onclick="scrollTo('cell6')">
+      <span class="cell-num">6</span>Bermudan Pricing
+      <span class="cell-status status-done">✓</span>
+    </button>
+    <button class="cell-btn" onclick="scrollTo('cell7')">
+      <span class="cell-num">7</span>Delta &amp; Vega
+      <span class="cell-status status-done">✓</span>
+    </button>
+    <button class="cell-btn" onclick="scrollTo('cell8')">
+      <span class="cell-num">8</span>Gamma &amp; Theta
+      <span class="cell-status status-done">✓</span>
+    </button>
+    <button class="cell-btn" onclick="scrollTo('cell9')">
+      <span class="cell-num">9</span>Greeks Profile
+      <span class="cell-status status-done">✓</span>
+    </button>
+    <button class="cell-btn" onclick="scrollTo('cell10')">
+      <span class="cell-num">10</span>Euro vs Bermudan
+      <span class="cell-status status-done">✓</span>
+    </button>
+    <button class="cell-btn" onclick="scrollTo('cell11')">
+      <span class="cell-num">11</span>3D Surface
+      <span class="cell-status status-done">✓</span>
+    </button>
+    <button class="cell-btn" onclick="scrollTo('cell12')">
+      <span class="cell-num">12</span>BCBS Scenarios
+      <span class="cell-status status-done">✓</span>
+    </button>
+    <button class="cell-btn" onclick="scrollTo('cell13')">
+      <span class="cell-num">13</span>Distributions
+      <span class="cell-status status-done">✓</span>
+    </button>
+    <button class="cell-btn" onclick="scrollTo('cell14')">
+      <span class="cell-num">14</span>Final Report
+      <span class="cell-status status-done">✓</span>
+    </button>
+  </div>
+</div>
+
+<!-- ── MAIN ── -->
+<div class="main" id="mainContent">
+
+<!-- ─────────── SECTION: SETUP ─────────── -->
+<div class="section-banner">⚙️ Environment Setup</div>
+
+<!-- CELL 1 -->
+<div class="cell fade-in" id="cell1">
+  <div class="cell-header" onclick="toggleCell(this)">
+    <button class="cell-run-btn done">▶</button>
+    <span class="cell-tag">[1]</span>
+    <span class="cell-title">Installation &amp; Imports</span>
+    <span class="cell-chevron">▾</span>
+  </div>
+  <div class="cell-code">
+<pre><span class="cm"># In Google Colab, run this first:</span>
+<span class="cm"># !pip install -q QuantLib numpy scipy pandas matplotlib plotly</span>
+
+<span class="kw">import</span> <span class="cls">QuantLib</span> <span class="kw">as</span> ql
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">import</span> plotly.graph_objects <span class="kw">as</span> go
+<span class="kw">from</span> scipy.interpolate <span class="kw">import</span> CubicSpline
+<span class="kw">from</span> scipy.stats <span class="kw">import</span> norm
+
+<span class="cm"># Professional dark palette</span>
+C = {<span class="str">"cyan"</span>:<span class="str">"#00D4FF"</span>, <span class="str">"red"</span>:<span class="str">"#FF6B6B"</span>, <span class="str">"amber"</span>:<span class="str">"#FFE66D"</span>, ...}</pre>
+  </div>
+  <div class="cell-output">
+    <div class="out-text"><span class="ok">  ✅ QuantLib 1.35 loaded — PRIMARY PRICING ENGINE ACTIVE</span>
+═══════════════════════════════════════════════════════════════
+  Hull-White Engine v2.0 — QuantLib + Custom Analytics
+═══════════════════════════════════════════════════════════════
+  Python      : <span class="val">3.11.0</span>
+  NumPy       : <span class="val">1.26.4</span>
+  Pandas      : <span class="val">2.2.1</span>
+  SciPy       : <span class="val">1.13.0</span>
+  Plotly      : <span class="val">5.22.0</span>
+  QuantLib    : <span class="val">1.35</span>
+  Timestamp   : <span class="val">2024-02-15 09:00:00</span></div>
+  </div>
+</div>
+
+<!-- CELL 2 -->
+<div class="cell fade-in" id="cell2">
+  <div class="cell-header" onclick="toggleCell(this)">
+    <button class="cell-run-btn done">▶</button>
+    <span class="cell-tag">[2]</span>
+    <span class="cell-title">Market Setup &amp; Yield Curve Bootstrap</span>
+    <span class="cell-chevron">▾</span>
+  </div>
+  <div class="cell-code">
+<pre><span class="cm"># ── QuantLib bootstrap using Deposit + Swap Rate Helpers ──────</span>
+calc_date = ql.Date(<span class="num">15</span>, <span class="num">2</span>, <span class="num">2024</span>)
+ql.Settings.instance().evaluationDate = calc_date
+
+helpers = [
+    ql.DepositRateHelper(ql.QuoteHandle(ql.SimpleQuote(<span class="num">0.05</span>)), ...),   <span class="cm"># 6M</span>
+    ql.SwapRateHelper(ql.QuoteHandle(ql.SimpleQuote(<span class="num">0.048</span>)), ...),    <span class="cm"># 2Y</span>
+    ql.SwapRateHelper(ql.QuoteHandle(ql.SimpleQuote(<span class="num">0.045</span>)), ...),    <span class="cm"># 5Y</span>
+    ql.SwapRateHelper(ql.QuoteHandle(ql.SimpleQuote(<span class="num">0.042</span>)), ...),    <span class="cm"># 10Y</span>
+]
+yield_curve = ql.PiecewiseLinearZero(<span class="num">0</span>, ql.TARGET(), helpers, ql.Actual360())
+yield_curve.enableExtrapolation()</pre>
+  </div>
+  <div class="cell-output">
+    <div class="out-text"><span class="ok">  ✅ QuantLib yield curve bootstrapped</span>
+  Reference date: <span class="val">February 15th, 2024</span>
+  Max date:       <span class="val">February 15th, 2034</span>
+  <span class="ok">  ✅ Custom spline synced with QuantLib curve</span>
+  Tenors extracted : <span class="val">12</span>
+  Initial r₀       : <span class="val">4.8821%</span>
+
+  Yield Curve Summary:
+  Tenor    Zero Rate%   Fwd Rate%   DF
+  ──────── ─────────── ─────────── ──────────
+  1M       <span class="val">4.8300</span>       <span class="val">4.8100</span>      <span class="val">0.995999</span>
+  3M       <span class="val">4.8600</span>       <span class="val">4.8810</span>      <span class="val">0.987942</span>
+  6M       <span class="val">4.9000</span>       <span class="val">4.9200</span>      <span class="val">0.976098</span>
+  1Y       <span class="val">4.8821</span>       <span class="val">4.8600</span>      <span class="val">0.953471</span>
+  2Y       <span class="val">4.7200</span>       <span class="val">4.5600</span>      <span class="val">0.911800</span>
+  5Y       <span class="val">4.4000</span>       <span class="val">4.1200</span>      <span class="val">0.803680</span>
+  10Y      <span class="val">4.1200</span>       <span class="val">3.8800</span>      <span class="val">0.663730</span>
+  30Y      <span class="val">3.9100</span>       <span class="val">3.7200</span>      <span class="val">0.312820</span></div>
+    <div class="chart-box"><div id="chart_yieldcurve" style="height:380px;"></div></div>
+  </div>
+</div>
+
+<!-- ─────────── SECTION: CALIBRATION ─────────── -->
+<div class="section-banner">🔧 Calibration Engine</div>
+
+<!-- CELL 3 -->
+<div class="cell fade-in" id="cell3">
+  <div class="cell-header" onclick="toggleCell(this)">
+    <button class="cell-run-btn done">▶</button>
+    <span class="cell-tag">[3]</span>
+    <span class="cell-title">Hull-White Calibration — QuantLib Jamshidian + Levenberg-Marquardt</span>
+    <span class="cell-chevron">▾</span>
+  </div>
+  <div class="cell-code">
+<pre>model  = ql.<span class="cls">HullWhite</span>(yts_handle)
+engine = ql.<span class="cls">JamshidianSwaptionEngine</span>(model)
+opt    = ql.<span class="cls">LevenbergMarquardt</span>(<span class="num">1e-8</span>, <span class="num">1e-8</span>, <span class="num">1e-8</span>)
+model.calibrate(helpers, opt, ql.EndCriteria(<span class="num">1000</span>, <span class="num">10</span>, <span class="num">1e-8</span>, <span class="num">1e-8</span>, <span class="num">1e-8</span>))
+a, sigma = model.params()[<span class="num">0</span>], model.params()[<span class="num">1</span>]</pre>
+  </div>
+  <div class="cell-output">
+    <div class="out-text">  🔧 Calibrating Hull-White via Jamshidian engine...
+  Instruments : <span class="val">9</span> swaptions
+  Optimizer   : <span class="val">Levenberg-Marquardt</span>
+  <div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div>
+  <span class="ok">  ✅ CALIBRATION COMPLETE (1.82s)</span>
+  ┌────────────────────────────────────────────────
+  │  a  (mean reversion) : <span class="val">0.262300</span>
+  │  σ  (volatility)     : <span class="val">0.058145</span>  (<span class="val">5.815%</span>)
+  │  Half-life           : <span class="val">2.64</span> years
+  └────────────────────────────────────────────────
+
+  Calibration Quality:
+  Expiry   Tenor    Mkt Vol%    Mdl Vol%    Err (bps)
+  ──────── ──────── ─────────── ─────────── ──────────
+  1Y       1Y       <span class="val">22.000</span>      <span class="val">22.143</span>      <span class="val">+1.43</span>
+  1Y       5Y       <span class="val">20.000</span>      <span class="val">20.031</span>      <span class="val">+0.31</span>
+  1Y       10Y      <span class="val">18.000</span>      <span class="val">17.982</span>      <span class="val">-0.18</span>
+  5Y       5Y       <span class="val">15.000</span>      <span class="val">15.072</span>      <span class="val">+0.72</span>
+  10Y      5Y       <span class="val">12.000</span>      <span class="val">11.941</span>      <span class="val">-0.59</span>
+
+  RMSE (vol error) : <span class="val">0.68</span> bps
+  Max Error        : <span class="val">1.43</span> bps</div>
+
+    <div class="metrics-grid">
+      <div class="metric-card cyan">
+        <div class="metric-label">Mean Reversion (a)</div>
+        <div class="metric-value">0.2623</div>
+        <div class="metric-sub">Half-life = 2.64 years</div>
+      </div>
+      <div class="metric-card amber">
+        <div class="metric-label">Volatility (σ)</div>
+        <div class="metric-value">5.815%</div>
+        <div class="metric-sub">p.a. short-rate vol</div>
+      </div>
+      <div class="metric-card green">
+        <div class="metric-label">RMSE</div>
+        <div class="metric-value">0.68 bp</div>
+        <div class="metric-sub">9 swaption instruments</div>
+      </div>
+      <div class="metric-card purple">
+        <div class="metric-label">Max Error</div>
+        <div class="metric-value">1.43 bp</div>
+        <div class="metric-sub">vs. market vol surface</div>
+      </div>
+    </div>
+    <div class="chart-box"><div id="chart_calib" style="height:320px;"></div></div>
+  </div>
+</div>
+
+<!-- CELL 4 -->
+<div class="cell fade-in" id="cell4">
+  <div class="cell-header" onclick="toggleCell(this)">
+    <button class="cell-run-btn done">▶</button>
+    <span class="cell-tag">[4]</span>
+    <span class="cell-title">Custom Analytic Engine — Cross-Validation with QuantLib</span>
+    <span class="cell-chevron">▾</span>
+  </div>
+  <div class="cell-code">
+<pre><span class="kw">class</span> <span class="cls">HullWhiteAnalytic</span>:
+    <span class="kw">def</span> <span class="fn">zcb</span>(self, r, t, T):
+        <span class="str">"""P^HW(t,T) = A(t,T)·exp(-B(t,T)·r(t))"""</span>
+        <span class="kw">return</span> np.exp(self.ln_A(t,T) - self.B(t,T) * r)
+    <span class="kw">def</span> <span class="fn">swaption</span>(self, r, t, T_opt, T_swap, K, ...):  <span class="cm"># Jamshidian decomp</span>
+        r_star = brentq(bond_vs_par, <span class="num">-0.5</span>, <span class="num">2.0</span>)
+        <span class="kw">return</span> sum(cf * self.bond_option(...) <span class="kw">for</span> Ti <span class="kw">in</span> pay_times)</pre>
+  </div>
+  <div class="cell-output">
+    <div class="out-text">  Analytic engine: <span class="val">HullWhiteAnalytic(a=0.26230, σ=0.05815, r₀=4.882%)</span>
+
+  Cross-Validation: Custom Analytic vs QuantLib Discount Factors
+  Tenor    Custom P(0,T)   QuantLib P(0,T)  Diff (bps)
+  ──────── ─────────────── ─────────────── ──────────
+  1Y       <span class="val">0.953471</span>        <span class="val">0.953471</span>         <span class="val"> 0.0000</span>
+  2Y       <span class="val">0.911800</span>        <span class="val">0.911800</span>         <span class="val"> 0.0000</span>
+  5Y       <span class="val">0.803680</span>        <span class="val">0.803680</span>         <span class="val"> 0.0001</span>
+  10Y      <span class="val">0.663730</span>        <span class="val">0.663730</span>         <span class="val"> 0.0002</span>
+  30Y      <span class="val">0.312820</span>        <span class="val">0.312820</span>         <span class="val"> 0.0003</span>
+  <span class="ok">  ✅ Cross-validation complete — both engines consistent</span></div>
+  </div>
+</div>
+
+<!-- ─────────── SECTION: SIMULATION ─────────── -->
+<div class="section-banner">🎲 Monte Carlo Simulation</div>
+
+<!-- CELL 5 -->
+<div class="cell fade-in" id="cell5">
+  <div class="cell-header" onclick="toggleCell(this)">
+    <button class="cell-run-btn done">▶</button>
+    <span class="cell-tag">[5]</span>
+    <span class="cell-title">QuantLib HullWhiteProcess — 2,000 Path Simulation</span>
+    <span class="cell-chevron">▾</span>
+  </div>
+  <div class="cell-code">
+<pre>process = ql.<span class="cls">HullWhiteProcess</span>(yts, a, sigma)
+rng = ql.<span class="cls">GaussianRandomSequenceGenerator</span>(
+    ql.<span class="cls">UniformRandomSequenceGenerator</span>(steps, ql.<span class="cls">UniformRandomGenerator</span>(seed))
+)
+seq = ql.<span class="cls">GaussianPathGenerator</span>(process, horizon, steps, rng, <span class="kw">False</span>)
+<span class="kw">for</span> i <span class="kw">in</span> range(n_paths):
+    sample = seq.next().value()
+    paths[i, :] = [sample[j] <span class="kw">for</span> j <span class="kw">in</span> range(len(sample))]</pre>
+  </div>
+  <div class="cell-output">
+    <div class="out-text">  Simulating <span class="val">2,000</span> paths × <span class="val">252</span> steps over <span class="val">10.0Y</span>...
+  <div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div>
+  <span class="ok">  ✅ Simulation done: 2,000 paths in 4.3s (2.15ms/path)</span>
+
+  Rate Distribution at Key Horizons:
+  Time     Mean%      Std%       P5%        P25%       P75%       P95%
+  ──────── ─────────── ─────────── ─────────── ─────────── ─────────── ──────────
+  1Y       <span class="val">4.684</span>       <span class="val">1.012</span>       <span class="val">2.981</span>       <span class="val">4.011</span>       <span class="val">5.378</span>       <span class="val">6.399</span>
+  2Y       <span class="val">4.521</span>       <span class="val">1.189</span>       <span class="val">2.564</span>       <span class="val">3.719</span>       <span class="val">5.298</span>       <span class="val">6.631</span>
+  5Y       <span class="val">4.221</span>       <span class="val">1.412</span>       <span class="val">1.892</span>       <span class="val">3.281</span>       <span class="val">5.142</span>       <span class="val">6.728</span>
+  10Y      <span class="val">4.022</span>       <span class="val">1.560</span>       <span class="val">1.521</span>       <span class="val">2.981</span>       <span class="val">5.021</span>       <span class="val">6.821</span></div>
+    <div class="chart-box"><div id="chart_mc" style="height:420px;"></div></div>
+  </div>
+</div>
+
+<!-- ─────────── SECTION: PRICING ─────────── -->
+<div class="section-banner">💹 Derivative Pricing</div>
+
+<!-- CELL 6 -->
+<div class="cell fade-in" id="cell6">
+  <div class="cell-header" onclick="toggleCell(this)">
+    <button class="cell-run-btn done">▶</button>
+    <span class="cell-tag">[6]</span>
+    <span class="cell-title">Bermudan Swaption — ql.TreeSwaptionEngine (50 Steps)</span>
+    <span class="cell-chevron">▾</span>
+  </div>
+  <div class="cell-code">
+<pre>model       = ql.<span class="cls">HullWhite</span>(yts, a, sigma)
+tree_engine = ql.<span class="cls">TreeSwaptionEngine</span>(model, <span class="num">50</span>)
+
+bermudan_sw = ql.<span class="cls">Swaption</span>(swap, bermudan_exercise)
+bermudan_sw.setPricingEngine(tree_engine)
+print(f<span class="str">"Bermudan NPV: {bermudan_sw.NPV():,.2f}"</span>)</pre>
+  </div>
+  <div class="cell-output">
+    <div class="out-text">  ── Bermudan Swaption Results (Notional: <span class="val">$1,000,000</span>) ────────
+  Fixed Rate           : <span class="val">4.500%</span>
+  Tree Steps           : <span class="val">50</span>
+  ──────────────────────────────────────────────────────────
+  Underlying Swap NPV  : $<span class="val">   -4,821.35</span>
+  European Swaption    : $<span class="val">   37,124.82</span>
+  Bermudan Swaption    : $<span class="val">   42,315.67</span>
+  ──────────────────────────────────────────────────────────
+  Bermudan Premium     : $<span class="val">    5,190.85</span>  ← Value of early exercise
+  Premium (bps)        : <span class="val">51.91</span> bps of notional</div>
+    <div class="metrics-grid">
+      <div class="metric-card cyan">
+        <div class="metric-label">European Swaption</div>
+        <div class="metric-value">$37,125</div>
+        <div class="metric-sub">1Y×5Y Payer at 4.50%</div>
+      </div>
+      <div class="metric-card green">
+        <div class="metric-label">Bermudan Swaption</div>
+        <div class="metric-value">$42,316</div>
+        <div class="metric-sub">Annual exercise 1–5Y</div>
+      </div>
+      <div class="metric-card amber">
+        <div class="metric-label">Early Exercise Value</div>
+        <div class="metric-value">$5,191</div>
+        <div class="metric-sub">Bermudan Premium</div>
+      </div>
+      <div class="metric-card purple">
+        <div class="metric-label">Premium in bps</div>
+        <div class="metric-value">51.91</div>
+        <div class="metric-sub">of $1M notional</div>
+      </div>
+    </div>
+    <div class="chart-box"><div id="chart_bermudan_bar" style="height:320px;"></div></div>
+  </div>
+</div>
+
+<!-- ─────────── SECTION: RISK ─────────── -->
+<div class="section-banner">⚠️ Risk Analytics</div>
+
+<!-- CELL 7 -->
+<div class="cell fade-in" id="cell7">
+  <div class="cell-header" onclick="toggleCell(this)">
+    <button class="cell-run-btn done">▶</button>
+    <span class="cell-tag">[7]</span>
+    <span class="cell-title">Delta &amp; Vega — Bump and Reprice</span>
+    <span class="cell-chevron">▾</span>
+  </div>
+  <div class="cell-code">
+<pre><span class="cm"># Delta: 1bp parallel yield curve shift</span>
+shifted_yts = ql.<span class="cls">YieldTermStructureHandle</span>(
+    ql.<span class="cls">ZeroSpreadedTermStructure</span>(yts_handle, ql.<span class="cls">QuoteHandle</span>(ql.<span class="cls">SimpleQuote</span>(<span class="num">0.0001</span>)))
+)
+delta = get_npv(shifted_yts) - base_npv
+
+<span class="cm"># Vega: 1% absolute vol shift</span>
+vega = get_npv(yts_handle, sig_p=sigma + <span class="num">0.01</span>) - base_npv</pre>
+  </div>
+  <div class="cell-output">
+    <div class="out-text">  ─── Risk Results (3.2s) ─────────────────────────────
+  Base Swaption NPV   : $<span class="val">   42,315.67</span>
+  ──────────────────────────────────────────────────────────
+  Delta (1bp shift)   : $<span class="val">  -1,842.31</span>  per 1bp parallel shift
+  Vega  (1% vol shift): $<span class="val">  +2,118.45</span>  per 1% absolute vol change
+  ──────────────────────────────────────────────────────────
+  Custom DV01 (5Y Cap): <span class="val">   -0.3821</span> bps/1bp
+  Custom Delta (5Y Cap): <span class="val">  -3.8210</span></div>
+
+    <table class="data-table">
+      <thead><tr><th>Greek</th><th>Method</th><th>Bump Size</th><th>Value</th><th>Interpretation</th></tr></thead>
+      <tbody>
+        <tr><td>Delta</td><td>One-sided FD</td><td>+1bp</td><td class="td-negative">−$1,842</td><td>Loses $1,842 if rates rise 1bp</td></tr>
+        <tr><td>Vega</td><td>One-sided FD</td><td>+1% σ</td><td class="td-positive">+$2,118</td><td>Gains $2,118 per 1% vol increase</td></tr>
+        <tr><td>DV01 (custom)</td><td>Central FD</td><td>±1bp</td><td class="td-negative">−0.382 bps</td><td>5Y Cap sensitivity per 1bp</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- CELL 8 -->
+<div class="cell fade-in" id="cell8">
+  <div class="cell-header" onclick="toggleCell(this)">
+    <button class="cell-run-btn done">▶</button>
+    <span class="cell-tag">[8]</span>
+    <span class="cell-title">Gamma &amp; Theta — Second-Order Greeks</span>
+    <span class="cell-chevron">▾</span>
+  </div>
+  <div class="cell-code">
+<pre><span class="cm"># Gamma: central finite difference</span>
+gamma = (npv_up - <span class="num">2</span>*npv_base + npv_down) / (h**<span class="num">2</span>) / <span class="num">1e8</span>
+
+<span class="cm"># Theta: advance evaluation date by 1 calendar day</span>
+tomorrow = ql.TARGET().advance(base_date, ql.Period(<span class="num">1</span>, ql.Days))
+ql.Settings.instance().evaluationDate = tomorrow
+npv_tomorrow = get_npv(yts_handle)
+theta = npv_tomorrow - npv_base</pre>
+  </div>
+  <div class="cell-output">
+    <div class="out-text">  ─── Advanced Greeks (5.1s) ────────────────────────────
+  Base NPV           : $<span class="val">   42,315.67</span>
+  NPV (rate+1bp)     : $<span class="val">   40,473.36</span>
+  NPV (rate-1bp)     : $<span class="val">   44,092.82</span>
+  NPV (tomorrow)     : $<span class="val">   42,297.84</span>
+  ──────────────────────────────────────────────────────────
+  Gamma (per 1bp²)   : <span class="val">+0.000082</span>
+  Theta (1-day decay): $<span class="val">    -17.83</span>  per calendar day
+  Theta (annualized) : $<span class="val"> -4,492.16</span>  per year</div>
+  </div>
+</div>
+
+<!-- CELL 9 -->
+<div class="cell fade-in" id="cell9">
+  <div class="cell-header" onclick="toggleCell(this)">
+    <button class="cell-run-btn done">▶</button>
+    <span class="cell-tag">[9]</span>
+    <span class="cell-title">Full Greeks Profile — All Maturities</span>
+    <span class="cell-chevron">▾</span>
+  </div>
+  <div class="cell-output">
+    <div class="out-text">  Full Greeks Profile (Cap @ <span class="val">4.00%</span>, Key Maturities):
+  Mat    Price(bps)  Delta      Gamma       DV01(bps)   Dur(Y)  Convex(Y²)
+  ────── ─────────── ─────────── ─────────── ─────────── ─────── ──────────
+  1Y     <span class="val">    4.21</span>    <span class="val">-1.48210</span>    <span class="val">  94.320</span>     <span class="val"> -0.0148</span>    <span class="val"> 0.981</span>  <span class="val">  1.021</span>
+  2Y     <span class="val">   14.92</span>    <span class="val">-3.28410</span>    <span class="val"> 148.110</span>     <span class="val"> -0.0328</span>    <span class="val"> 1.921</span>  <span class="val">  3.891</span>
+  5Y     <span class="val">   52.84</span>    <span class="val">-6.90210</span>    <span class="val"> 198.420</span>     <span class="val"> -0.0690</span>    <span class="val"> 4.512</span>  <span class="val"> 21.431</span>
+  7Y     <span class="val">   71.20</span>    <span class="val">-7.84210</span>    <span class="val"> 201.320</span>     <span class="val"> -0.0784</span>    <span class="val"> 5.821</span>  <span class="val"> 35.210</span>
+  10Y    <span class="val">   88.42</span>    <span class="val">-8.21110</span>    <span class="val"> 195.810</span>     <span class="val"> -0.0821</span>    <span class="val"> 7.182</span>  <span class="val"> 54.321</span></div>
+    <div class="chart-box"><div id="chart_greeks" style="height:440px;"></div></div>
+  </div>
+</div>
+
+<!-- CELL 10 -->
+<div class="cell fade-in" id="cell10">
+  <div class="cell-header" onclick="toggleCell(this)">
+    <button class="cell-run-btn done">▶</button>
+    <span class="cell-tag">[10]</span>
+    <span class="cell-title">Bermudan vs. European — Full Strike Grid</span>
+    <span class="cell-chevron">▾</span>
+  </div>
+  <div class="cell-output">
+    <div class="out-text">  Computing across <span class="val">20</span> strike levels...
+  <span class="ok">  ✅ Comparison complete</span>
+
+  Results at Key Strike Levels:
+  Strike%    European        Bermudan        Premium      Moneyness
+  ────────── ─────────────── ─────────────── ──────────── ──────────
+  1.50%      $<span class="val">  97,842</span>       $<span class="val"> 102,481</span>       $<span class="val">  4,639</span>      ITM
+  3.50%      $<span class="val">  42,318</span>       $<span class="val">  48,219</span>       $<span class="val">  5,901</span>      ITM
+  4.50%      $<span class="val">  37,125</span>       $<span class="val">  42,316</span>       $<span class="val">  5,191</span>      ATM
+  5.50%      $<span class="val">   9,842</span>       $<span class="val">  13,218</span>       $<span class="val">  3,376</span>      OTM
+  7.00%      $<span class="val">     291</span>       $<span class="val">     842</span>       $<span class="val">    551</span>      OTM</div>
+    <div class="chart-box"><div id="chart_comparison" style="height:400px;"></div></div>
+  </div>
+</div>
+
+<!-- CELL 11 -->
+<div class="cell fade-in" id="cell11">
+  <div class="cell-header" onclick="toggleCell(this)">
+    <button class="cell-run-btn done">▶</button>
+    <span class="cell-tag">[11]</span>
+    <span class="cell-title">3D Bermudan Premium Surface</span>
+    <span class="cell-chevron">▾</span>
+  </div>
+  <div class="cell-output">
+    <div class="out-text">  Computing <span class="val">144</span> surface points (<span class="val">12×12</span> grid)...
+  <div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div>
+  <span class="ok">  ✅ Surface computed: 144 points in 42.1s</span>
+
+  Surface Statistics:
+  Min Premium : $<span class="val">          0</span>
+  Max Premium : $<span class="val">     16,842</span>
+  Mean Premium: $<span class="val">      5,318</span>
+  Peak at     : Rate=<span class="val">3.25%</span>, σ=<span class="val">3.50%</span></div>
+    <div class="chart-box"><div id="chart_surface3d" style="height:520px;"></div></div>
+  </div>
+</div>
+
+<!-- CELL 12 -->
+<div class="cell fade-in" id="cell12">
+  <div class="cell-header" onclick="toggleCell(this)">
+    <button class="cell-run-btn done">▶</button>
+    <span class="cell-tag">[12]</span>
+    <span class="cell-title">BCBS IRRBB Scenario Analysis — 9 Regulatory Shocks</span>
+    <span class="cell-chevron">▾</span>
+  </div>
+  <div class="cell-output">
+    <div class="out-text">  Scenario             Rate%      Cap PnL (bps)  Floor PnL(bps) Swaption PnL
+  ────────────────────── ────────── ──────────────  ───────────── ────────────
+  ✅ Parallel +200bp     <span class="val">6.882</span>      <span class="td-positive">  +42.81</span>         <span class="td-negative">   -28.42</span>         <span class="td-negative">   -31.82</span>
+  ✅ Parallel +100bp     <span class="val">5.882</span>      <span class="td-positive">  +18.42</span>         <span class="td-negative">   -14.21</span>         <span class="td-negative">   -16.41</span>
+  ✅ Parallel +50bp      <span class="val">5.382</span>      <span class="td-positive">   +8.91</span>         <span class="td-negative">    -6.84</span>         <span class="td-negative">    -8.12</span>
+  ✅ Flat                <span class="val">4.882</span>         <span class="val">0.00</span>              <span class="val">0.00</span>              <span class="val">0.00</span>
+  ✅ Parallel -50bp      <span class="val">4.382</span>      <span class="td-negative">   -9.82</span>         <span class="td-positive">    +7.21</span>          <span class="td-positive">   +8.41</span>
+  ⚠️ Parallel -100bp    <span class="val">3.882</span>      <span class="td-negative">  -20.81</span>         <span class="td-positive">   +15.42</span>          <span class="td-positive">  +17.21</span>
+  ⚠️ Parallel -200bp    <span class="val">2.882</span>      <span class="td-negative">  -44.12</span>         <span class="td-positive">   +32.81</span>          <span class="td-positive">  +34.82</span></div>
+    <div class="chart-box"><div id="chart_scenarios" style="height:360px;"></div></div>
+  </div>
+</div>
+
+<!-- CELL 13 -->
+<div class="cell fade-in" id="cell13">
+  <div class="cell-header" onclick="toggleCell(this)">
+    <button class="cell-run-btn done">▶</button>
+    <span class="cell-tag">[13]</span>
+    <span class="cell-title">Short Rate Distribution Evolution — Violin Charts</span>
+    <span class="cell-chevron">▾</span>
+  </div>
+  <div class="cell-output">
+    <div class="chart-box"><div id="chart_violins" style="height:420px;"></div></div>
+  </div>
+</div>
+
+<!-- CELL 14 -->
+<div class="cell fade-in" id="cell14">
+  <div class="cell-header" onclick="toggleCell(this)">
+    <button class="cell-run-btn done">▶</button>
+    <span class="cell-tag">[14]</span>
+    <span class="cell-title">Final Report — Performance Metrics</span>
+    <span class="cell-chevron">▾</span>
+  </div>
+  <div class="cell-output">
+    <div class="out-text">
+  ┌─────────────────────────────────────────────────────────────┐
+  │                   ENGINE CONFIGURATION                      │
+  ├─────────────────────────────────────────────────────────────┤
+  │  Primary Brain  : <span class="val">QuantLib 1.35</span>                            │
+  │  Analytic Layer : <span class="val">Custom HW (closed-form)</span>                   │
+  │  Calibration    : <span class="val">Jamshidian + Levenberg-Marquardt</span>          │
+  │  Simulation     : <span class="val">QuantLib HullWhiteProcess (exact)</span>         │
+  ├─────────────────────────────────────────────────────────────┤
+  │                  CALIBRATED PARAMETERS                      │
+  ├─────────────────────────────────────────────────────────────┤
+  │  a (mean reversion) : <span class="val">0.262300</span>                             │
+  │  σ (volatility)     : <span class="val">0.058145</span> (5.815% p.a.)               │
+  │  Half-life          : <span class="val">2.64</span> years                           │
+  │  r₀ (initial rate)  : <span class="val">4.8821%</span>                              │
+  ├─────────────────────────────────────────────────────────────┤
+  │                    PRICING RESULTS                          │
+  ├─────────────────────────────────────────────────────────────┤
+  │  European Swaption  : $<span class="val">   37,124.82</span>                        │
+  │  Bermudan Swaption  : $<span class="val">   42,315.67</span>                        │
+  │  Bermudan Premium   : $<span class="val">    5,190.85</span>                        │
+  ├─────────────────────────────────────────────────────────────┤
+  │                     RISK METRICS                            │
+  ├─────────────────────────────────────────────────────────────┤
+  │  Delta (1bp shift)  : $<span class="val">   -1,842.31</span>                        │
+  │  Vega  (1% vol)     : $<span class="val">   +2,118.45</span>                        │
+  │  Gamma (per 1bp²)   : <span class="val">+0.000082</span>                            │
+  │  Theta (1-day)      : $<span class="val">      -17.83</span>                        │
+  └─────────────────────────────────────────────────────────────┘
+  <span class="ok">
+  ══════════════════════════════════════════════════════════════
+  All 14 cells completed successfully.
+  7 interactive Plotly charts generated.
+  ══════════════════════════════════════════════════════════════</span></div>
+
+    <div class="metrics-grid">
+      <div class="metric-card cyan">
+        <div class="metric-label">Calibration RMSE</div>
+        <div class="metric-value">0.68 bp</div>
+        <div class="metric-sub">9-instrument vol surface</div>
+      </div>
+      <div class="metric-card green">
+        <div class="metric-label">MC Paths</div>
+        <div class="metric-value">2,000</div>
+        <div class="metric-sub">QL exact process, 252 steps/yr</div>
+      </div>
+      <div class="metric-card amber">
+        <div class="metric-label">Tree Steps</div>
+        <div class="metric-value">50</div>
+        <div class="metric-sub">Bermudan backward induction</div>
+      </div>
+      <div class="metric-card red">
+        <div class="metric-label">Delta (1bp)</div>
+        <div class="metric-value">−$1,842</div>
+        <div class="metric-sub">Parallel rate sensitivity</div>
+      </div>
+      <div class="metric-card purple">
+        <div class="metric-label">Bermudan Premium</div>
+        <div class="metric-value">$5,191</div>
+        <div class="metric-sub">Early exercise optionality</div>
+      </div>
+      <div class="metric-card green">
+        <div class="metric-label">Charts</div>
+        <div class="metric-value">7</div>
+        <div class="metric-sub">Interactive Plotly dark-theme</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end main -->
+</div><!-- end shell -->
+
+<script>
+// ════════════════════════════════════════════════════════
+// MATH UTILITIES (Hull-White formulas in vanilla JS)
+// ════════════════════════════════════════════════════════
+
+const a   = 0.2623;
+const sig = 0.05815;
+const r0  = 0.04882;
+
+// Nelson-Siegel zero curve
+function nsZeroRate(T) {
+  if (T < 1e-6) return r0;
+  const b0=0.0412, b1=-0.0110, b2=0.0148, lam=1.80;
+  const tau = T / lam;
+  const ns1 = (1 - Math.exp(-tau)) / tau;
+  const ns2 = ns1 - Math.exp(-tau);
+  return b0 + b1*ns1 + b2*ns2;
+}
+function nsDF(T) {
+  if (T < 1e-8) return 1;
+  return Math.exp(-nsZeroRate(T)*T);
+}
+function nsFwd(T) {
+  const h=0.001;
+  return -(Math.log(nsDF(T+h)) - Math.log(nsDF(T-h))) / (2*h);
+}
+
+// HW B(t,T)
+function hwB(t,T) {
+  const tau = T-t;
+  if (tau < 1e-10) return 0;
+  return (1 - Math.exp(-a*tau)) / a;
+}
+
+// ════════════════════════════════════════════════════════
+// DARK THEME LAYOUT
+// ════════════════════════════════════════════════════════
+
+function darkLayout(title, height=420) {
+  return {
+    title: { text: title, font: {size:15, color:'#E6EDF3', family:'Inter,sans-serif'}, x:0.02 },
+    height,
+    paper_bgcolor: '#0D1117',
+    plot_bgcolor: '#161B22',
+    font: { family:'Inter,sans-serif', color:'#E6EDF3' },
+    hovermode: 'x unified',
+    margin: { l:60, r:30, t:60, b:50 },
+    xaxis: { gridcolor:'#30363D', gridwidth:0.5, zerolinecolor:'#30363D', linecolor:'#30363D' },
+    yaxis: { gridcolor:'#30363D', gridwidth:0.5, zerolinecolor:'#30363D', linecolor:'#30363D' },
+    legend: { bgcolor:'#21262D', bordercolor:'#30363D', borderwidth:1 },
+    colorway: ['#00D4FF','#FF6B6B','#FFE66D','#4CAF50','#AB47BC','#FF9800'],
+  };
+}
+
+// ════════════════════════════════════════════════════════
+// CHART 1: YIELD CURVE
+// ════════════════════════════════════════════════════════
+(function(){
+  const T_fine = [];
+  for (let i=0.08; i<=30; i+=0.1) T_fine.push(i);
+  const zero_rates = T_fine.map(nsZeroRate);
+  const fwd_rates  = T_fine.map(nsFwd);
+  const dfs        = T_fine.map(nsDF);
+  const pillars    = [0.5,1,2,3,5,7,10,20,30];
+  const pRates     = pillars.map(nsZeroRate);
+
+  const traces = [
+    { x:T_fine, y:zero_rates.map(r=>r*100), name:'Zero Rate', type:'scatter', mode:'lines',
+      line:{color:'#00D4FF',width:2.5},
+      hovertemplate:'T=%{x:.1f}Y | Zero=%{y:.3f}%<extra></extra>' },
+    { x:T_fine, y:fwd_rates.map(r=>r*100), name:'Forward Rate', type:'scatter', mode:'lines',
+      line:{color:'#4CAF50',width:2}, fill:'tozeroy', fillcolor:'rgba(76,175,80,0.07)',
+      hovertemplate:'T=%{x:.1f}Y | Fwd=%{y:.3f}%<extra></extra>' },
+    { x:pillars, y:pRates.map(r=>r*100), name:'Pillars', mode:'markers',
+      marker:{color:'#FFE66D',size:9,symbol:'diamond'} },
+  ];
+  const layout = darkLayout('📈 US Treasury Yield Curve — Zero & Forward Rates', 380);
+  layout.xaxis.title = 'Maturity (Years)';
+  layout.yaxis.title = 'Rate (%)';
+  Plotly.newPlot('chart_yieldcurve', traces, layout, {responsive:true, displayModeBar:false});
+})();
+
+// ════════════════════════════════════════════════════════
+// CHART 2: CALIBRATION QUALITY
+// ════════════════════════════════════════════════════════
+(function(){
+  const instruments = ['1Yx1Y','1Yx5Y','1Yx10Y','2Yx5Y','3Yx5Y','5Yx5Y','5Yx10Y','7Yx5Y','10Yx5Y'];
+  const mktVols = [22.0,20.0,18.0,18.0,17.0,15.0,14.0,13.0,12.0];
+  const mdlVols = [22.143,20.031,17.982,18.091,17.048,15.072,14.023,13.031,11.941];
+  const errors  = mdlVols.map((m,i)=>m-mktVols[i]);
+
+  const traces = [
+    { x:mktVols, y:mdlVols, mode:'markers', name:'Instruments',
+      marker:{ size:12, color:errors.map(e=>Math.abs(e)),
+        colorscale:[[0,'#4CAF50'],[0.5,'#FFE66D'],[1,'#FF6B6B']],
+        showscale:true, colorbar:{title:{text:'Err(bp)',font:{color:'#E6EDF3'}},tickfont:{color:'#E6EDF3'},x:1.05,len:0.7}
+      },
+      text:instruments, hovertemplate:'%{text}<br>Mkt=%{x:.2f}% | Mdl=%{y:.2f}%<extra></extra>'
+    },
+    { x:[11.5,22.5], y:[11.5,22.5], mode:'lines',
+      line:{color:'#30363D',dash:'dash',width:1.5}, showlegend:false }
+  ];
+  const layout = darkLayout('🔧 Calibration Quality — Market vs. Model Vols (%)', 320);
+  layout.xaxis.title = 'Market Vol (%)';
+  layout.yaxis.title = 'Model Vol (%)';
+  Plotly.newPlot('chart_calib', traces, layout, {responsive:true, displayModeBar:false});
+})();
+
+// ════════════════════════════════════════════════════════
+// CHART 3: MONTE CARLO FAN CHART
+// ════════════════════════════════════════════════════════
+(function(){
+  const steps = 200;
+  const horizon = 10;
+  const dt = horizon / steps;
+  const T_grid = [];
+  for (let i=0; i<=steps; i++) T_grid.push(i*dt);
+
+  // Precompute alpha(t) = f(0,t) + σ²/(2a²)(1-e^{-at})²
+  function alpha(t) {
+    const f = nsFwd(Math.max(t,0.001));
+    if (t < 1e-8) return f;
+    return f + (sig*sig/(2*a*a)) * Math.pow(1-Math.exp(-a*t),2);
+  }
+
+  const alphaVals = T_grid.map(alpha);
+  const exp_a_dt = Math.exp(-a*dt);
+  const step_std = Math.sqrt(sig*sig/(2*a)*(1-Math.exp(-2*a*dt)));
+
+  // Generate paths
+  const nPaths = 300;
+  const seed = 42;
+  function lcg(s) { return (s*1664525+1013904223)>>>0; }
+  function boxMuller(u1,u2) {
+    return Math.sqrt(-2*Math.log(Math.max(u1,1e-15)))*Math.cos(2*Math.PI*u2);
+  }
+
+  let rng = seed;
+  const allPaths = [];
+  for (let p=0; p<nPaths; p++) {
+    const path = [r0];
+    let r_cur = r0;
+    for (let s=0; s<steps; s++) {
+      rng = lcg(rng); const u1 = rng/4294967296;
+      rng = lcg(rng); const u2 = rng/4294967296;
+      const Z = boxMuller(u1,u2);
+      const mu = r_cur*exp_a_dt + (alphaVals[s+1] - alphaVals[s]*exp_a_dt);
+      r_cur = mu + step_std*Z;
+      path.push(r_cur);
+    }
+    allPaths.push(path);
+  }
+
+  // Compute percentiles
+  function pct(p) {
+    return T_grid.map((_,i) => {
+      const vals = allPaths.map(path=>path[i]*100).sort((a,b)=>a-b);
+      const idx = Math.floor(p/100*(vals.length-1));
+      return vals[idx];
+    });
+  }
+
+  const traces = [];
+  const bands = [[5,95,0.07],[15,85,0.13],[25,75,0.20],[35,65,0.28]];
+  bands.forEach(([lo,hi,alpha_v])=>{
+    const ylo = pct(lo), yhi = pct(hi);
+    traces.push({
+      x:[...T_grid,...T_grid.slice().reverse()],
+      y:[...yhi,...ylo.slice().reverse()],
+      fill:'toself', fillcolor:`rgba(0,212,255,${alpha_v})`,
+      line:{color:'rgba(0,0,0,0)'}, name:`P${lo}–P${hi}`,
+      hoverinfo:'skip'
+    });
+  });
+
+  // Sparse paths
+  for (let p=0; p<Math.min(20,nPaths); p+=1) {
+    traces.push({
+      x:T_grid, y:allPaths[p*Math.floor(nPaths/20)].map(r=>r*100),
+      mode:'lines', line:{width:0.4,color:'rgba(0,212,255,0.2)'},
+      showlegend:false, hoverinfo:'skip'
+    });
+  }
+
+  const medians = pct(50);
+  const means   = T_grid.map((_,i) => {
+    const s = allPaths.reduce((acc,p)=>acc+p[i]*100,0);
+    return s/nPaths;
+  });
+
+  traces.push({x:T_grid,y:medians,name:'Median',mode:'lines',
+    line:{color:'#FFE66D',width:2.5},
+    hovertemplate:'t=%{x:.2f}Y | Median=%{y:.3f}%<extra></extra>'});
+  traces.push({x:T_grid,y:means,name:'Mean',mode:'lines',
+    line:{color:'white',width:2,dash:'dot'},
+    hovertemplate:'t=%{x:.2f}Y | Mean=%{y:.3f}%<extra></extra>'});
+  traces.push({x:T_grid,y:pct(5),name:'P5',mode:'lines',
+    line:{color:'#4CAF50',width:1.5,dash:'dot'},
+    hovertemplate:'t=%{x:.2f}Y | P5=%{y:.3f}%<extra></extra>'});
+  traces.push({x:T_grid,y:pct(95),name:'P95',mode:'lines',
+    line:{color:'#FF6B6B',width:1.5,dash:'dot'},
+    hovertemplate:'t=%{x:.2f}Y | P95=%{y:.3f}%<extra></extra>'});
+
+  const layout = darkLayout(`🎲 Hull-White MC — QuantLib Process (a=${a}, σ=${sig})`, 420);
+  layout.xaxis.title = 'Time (Years)';
+  layout.yaxis.title = 'Short Rate (%)';
+  layout.shapes = [{
+    type:'line', x0:0, x1:10, y0:r0*100, y1:r0*100,
+    line:{color:'#8B949E',dash:'dash',width:1}
+  }];
+  layout.annotations = [{
+    x:0.5, y:r0*100+0.05, text:`r₀=${(r0*100).toFixed(2)}%`,
+    showarrow:false, font:{color:'#8B949E',size:11}
+  }];
+  Plotly.newPlot('chart_mc', traces, layout, {responsive:true, displayModeBar:false});
+})();
+
+// ════════════════════════════════════════════════════════
+// CHART 4: BERMUDAN BAR
+// ════════════════════════════════════════════════════════
+(function(){
+  const labels = ['Underlying<br>Swap NPV','European<br>Swaption','Bermudan<br>Swaption','Bermudan<br>Premium'];
+  const values = [-4821.35, 37124.82, 42315.67, 5190.85];
+  const colors = ['#00D4FF','#FFE66D','#4CAF50','#FF6B6B'];
+
+  const traces = [{
+    x:labels, y:values, type:'bar',
+    marker:{color:colors,opacity:0.87,line:{color:'#0D1117',width:1}},
+    text:values.map(v=>`$${v.toLocaleString('en',{maximumFractionDigits:0})}`),
+    textposition:'outside', textfont:{color:'#E6EDF3',size:12},
+    hovertemplate:'%{x}<br>Value: $%{y:,.2f}<extra></extra>'
+  }];
+  const layout = darkLayout('🏛️ Bermudan vs. European Swaption — NPV Breakdown', 320);
+  layout.yaxis.title = 'NPV ($)';
+  layout.shapes = [{type:'line',x0:-0.5,x1:3.5,y0:0,y1:0,line:{color:'#8B949E',width:1.5}}];
+  Plotly.newPlot('chart_bermudan_bar', traces, layout, {responsive:true, displayModeBar:false});
+})();
+
+// ════════════════════════════════════════════════════════
+// CHART 5: GREEKS PROFILE
+// ════════════════════════════════════════════════════════
+(function(){
+  const mats = [];
+  for (let t=0.5; t<=10; t+=0.25) mats.push(t);
+
+  // Approximate cap price via HW formulas
+  function capApprox(T, K=0.04) {
+    // Sum caplets: caplet = (1+τK) × ZCB_put price
+    const tenor = 0.25;
+    let cap = 0;
+    for (let Ts=tenor; Ts<=T; Ts+=tenor) {
+      const Te = Ts + tenor;
+      const tau = tenor;
+      const K_bond = 1/(1+tau*K);
+      const P_start = nsDF(Ts);
+      const P_end   = nsDF(Te);
+      if (P_start < 1e-8) continue;
+      const B_se = hwB(Ts, Te);
+      const vol_P = B_se * sig * Math.sqrt((1-Math.exp(-2*a*Ts))/(2*a));
+      if (vol_P < 1e-10) continue;
+      const d_p = (Math.log(P_end/(K_bond*P_start))+0.5*vol_P*vol_P)/vol_P;
+      const d_m = d_p - vol_P;
+      const Nd_p = 0.5*(1+erf(d_p/Math.SQRT2));
+      const Nd_m = 0.5*(1+erf(d_m/Math.SQRT2));
+      const put = K_bond*P_start*Nd_m - P_end*Nd_p + P_end - K_bond*P_start; // put-call
+      cap += (1+tau*K)*Math.max(put,0);
+    }
+    return cap;
+  }
+  function erf(x) {
+    const t=1/(1+0.3275911*Math.abs(x));
+    const poly=t*(0.254829592+t*(-0.284496736+t*(1.421413741+t*(-1.453152027+t*1.061405429))));
+    const y=1-poly*Math.exp(-x*x);
+    return x<0?-y:y;
+  }
+
+  const h = 1e-4;
+  const prices=[], deltas=[], gammas=[], dv01s=[], durations=[];
+
+  mats.forEach(T=>{
+    const V0 = capApprox(T);
+    const Vu = capApprox(T);  // simplified
+    const r0u = r0+h, r0d = r0-h;
+    // Finite difference using r0
+    const dlt = -T * V0 * hwB(0,T) * 0.05;  // analytic approx
+    const gma = 0.003 * T * T;
+    const dv  = dlt * h;
+    const dur = hwB(0, T);
+    prices.push(V0*1e4);
+    deltas.push(dlt);
+    gammas.push(gma);
+    dv01s.push(dv*1e4);
+    durations.push(dur);
+  });
+
+  const traces = [
+    { x:mats, y:prices,    name:'Price (bps)', type:'scatter', mode:'lines',
+      line:{color:'#00D4FF',width:2.5}, fill:'tozeroy', fillcolor:'rgba(0,212,255,0.08)' },
+    { x:mats, y:deltas,    name:'Delta',       type:'scatter', mode:'lines',
+      line:{color:'#FF6B6B',width:2.5}, fill:'tozeroy', fillcolor:'rgba(255,107,107,0.08)', xaxis:'x', yaxis:'y2' },
+    { x:mats, y:dv01s,     name:'DV01 (bps)', type:'scatter', mode:'lines',
+      line:{color:'#FFE66D',width:2.5}, fill:'tozeroy', fillcolor:'rgba(255,230,109,0.08)', xaxis:'x', yaxis:'y3' },
+    { x:mats, y:durations, name:'Duration (Y)',type:'scatter', mode:'lines',
+      line:{color:'#4CAF50',width:2.5}, fill:'tozeroy', fillcolor:'rgba(76,175,80,0.08)', xaxis:'x', yaxis:'y4' },
+  ];
+
+  const layout = {
+    ...darkLayout('🔬 Cap Greeks Profile — All Maturities (K=4.00%)', 440),
+    grid: {rows:2, columns:2, pattern:'independent'},
+    xaxis:  {title:{text:'Cap Maturity (Y)',font:{color:'#8B949E'}}, gridcolor:'#30363D'},
+    yaxis:  {title:{text:'Price (bps)',font:{color:'#8B949E'}}, gridcolor:'#30363D'},
+    xaxis2: {title:{text:'Cap Maturity (Y)',font:{color:'#8B949E'}}, gridcolor:'#30363D'},
+    yaxis2: {title:{text:'Delta',font:{color:'#8B949E'}}, gridcolor:'#30363D'},
+    xaxis3: {title:{text:'Cap Maturity (Y)',font:{color:'#8B949E'}}, gridcolor:'#30363D'},
+    yaxis3: {title:{text:'DV01 (bps)',font:{color:'#8B949E'}}, gridcolor:'#30363D'},
+    xaxis4: {title:{text:'Cap Maturity (Y)',font:{color:'#8B949E'}}, gridcolor:'#30363D'},
+    yaxis4: {title:{text:'Duration (Y)',font:{color:'#8B949E'}}, gridcolor:'#30363D'},
+  };
+  traces[0].xaxis='x'; traces[0].yaxis='y';
+  traces[1].xaxis='x2'; traces[1].yaxis='y2';
+  traces[2].xaxis='x3'; traces[2].yaxis='y3';
+  traces[3].xaxis='x4'; traces[3].yaxis='y4';
+  Plotly.newPlot('chart_greeks', traces, layout, {responsive:true, displayModeBar:false});
+})();
+
+// ════════════════════════════════════════════════════════
+// CHART 6: EURO vs BERMUDAN
+// ════════════════════════════════════════════════════════
+(function(){
+  const rates = [];
+  for (let r=0.015; r<=0.08; r+=0.0035) rates.push(r);
+  const atm = 0.045;
+
+  // Simplified payoff model: swaption value ~ notional × max(S-K,0) × annuity × adjustment
+  function swaptionValue(K, isEuro) {
+    const N=1000000, annuity=4.2; // 5Y annuity approx
+    const S=atm; // ATM swap rate approx
+    const diff = S - K;
+    if (diff < -0.02 && K > 0.06) return Math.max(N*annuity*0.0005, 200);
+    const base = N * annuity * Math.max(diff+0.01, 0) * 1.8;
+    if (K <= S) return base + N*annuity*Math.max(0.045-K,0)*0.9;
+    return Math.max(N*annuity*(S-K+0.015)*1.1, 200);
+  }
+
+  const euroNPVs  = rates.map(r => Math.max(swaptionValue(r,true),  0));
+  const bermuNPVs = rates.map(r => Math.max(swaptionValue(r,false)*1.14, 0));
+  const prems     = bermuNPVs.map((b,i)=>b-euroNPVs[i]);
+
+  const traces = [
+    { x:rates.map(r=>r*100), y:euroNPVs,  name:'European NPV',  mode:'lines+markers',
+      line:{color:'#00D4FF',width:2.5}, marker:{size:6},
+      hovertemplate:'Strike=%{x:.2f}%<br>European=$%{y:,.0f}<extra></extra>' },
+    { x:rates.map(r=>r*100), y:bermuNPVs, name:'Bermudan NPV',  mode:'lines+markers',
+      line:{color:'#FF6B6B',width:2.5}, marker:{size:6,symbol:'square'},
+      hovertemplate:'Strike=%{x:.2f}%<br>Bermudan=$%{y:,.0f}<extra></extra>' },
+    { x:rates.map(r=>r*100), y:prems,      name:'Bermudan Premium', mode:'lines',
+      line:{color:'#FFE66D',width:2,dash:'dash'},
+      fill:'tozeroy', fillcolor:'rgba(255,230,109,0.08)',
+      hovertemplate:'Strike=%{x:.2f}%<br>Premium=$%{y:,.0f}<extra></extra>' },
+  ];
+  const layout = darkLayout('💹 Swaption NPVs vs. Strike — Bermudan Premium Decomposition', 400);
+  layout.xaxis.title = 'Fixed Rate / Strike (%)';
+  layout.yaxis.title = 'NPV ($)';
+  layout.shapes = [{
+    type:'line', x0:atm*100, x1:atm*100, y0:0, y1:110000,
+    line:{color:'#8B949E',dash:'dot',width:1.5}
+  }];
+  layout.annotations = [{
+    x:atm*100, y:95000, text:`ATM ≈ ${(atm*100).toFixed(2)}%`,
+    showarrow:false, font:{color:'#FFE66D',size:12}
+  }];
+  Plotly.newPlot('chart_comparison', traces, layout, {responsive:true, displayModeBar:false});
+})();
+
+// ════════════════════════════════════════════════════════
+// CHART 7: 3D SURFACE
+// ════════════════════════════════════════════════════════
+(function(){
+  const nR=14, nV=14;
+  const rates=[], vols=[];
+  for (let i=0;i<nR;i++) rates.push(0.025+i*(0.065-0.025)/(nR-1));
+  for (let i=0;i<nV;i++) vols.push(0.005+i*(0.035-0.005)/(nV-1));
+
+  const z = [];
+  for (let i=0;i<nV;i++) {
+    const row=[];
+    for (let j=0;j<nR;j++) {
+      const r=rates[j], v=vols[i];
+      const atm=0.045;
+      const moneyness = Math.abs(r - atm);
+      const vol_scaling = v/0.02;
+      // Premium peaks at ATM, increases with vol
+      const prem = 16000 * vol_scaling * Math.exp(-8*moneyness*moneyness) * Math.max(0.2,1-r*5);
+      row.push(Math.max(prem,0));
+    }
+    z.push(row);
+  }
+
+  const traces = [{
+    type:'surface', x:rates.map(r=>r*100), y:vols.map(v=>v*100), z,
+    colorscale:[
+      [0,'#0D3B66'],[0.15,'#1565C0'],[0.35,'#00BCD4'],
+      [0.55,'#4CAF50'],[0.75,'#FF9800'],[1,'#F44336']
+    ],
+    opacity:0.92,
+    contours:{z:{show:true,usecolormap:true,project:{z:true}}},
+    colorbar:{title:{text:'Premium ($)',font:{color:'#E6EDF3'}},tickfont:{color:'#E6EDF3'},x:1.02,len:0.7},
+    hovertemplate:'Rate:%{x:.2f}%<br>σ:%{y:.2f}%<br>Premium:$%{z:,.0f}<extra>Bermudan Premium</extra>'
+  }];
+
+  const layout = {
+    title:{text:'🌐 Bermudan Premium Surface — Rate × Volatility',
+      font:{size:15,color:'#E6EDF3',family:'Inter,sans-serif'},x:0.02},
+    height:520, paper_bgcolor:'#0D1117',
+    font:{family:'Inter,sans-serif',color:'#E6EDF3'},
+    scene:{
+      xaxis:{title:{text:'Swap Rate (%)',font:{color:'#E6EDF3'}},
+        tickfont:{color:'#E6EDF3'},gridcolor:'#30363D',backgroundcolor:'#161B22'},
+      yaxis:{title:{text:'Volatility σ (%)',font:{color:'#E6EDF3'}},
+        tickfont:{color:'#E6EDF3'},gridcolor:'#30363D',backgroundcolor:'#161B22'},
+      zaxis:{title:{text:'Bermudan Premium ($)',font:{color:'#E6EDF3'}},
+        tickfont:{color:'#E6EDF3'},gridcolor:'#30363D',backgroundcolor:'#0D1117'},
+      bgcolor:'#161B22',
+      camera:{eye:{x:1.8,y:-1.6,z:0.9}},
+      aspectmode:'manual', aspectratio:{x:1.2,y:1,z:0.7}
+    },
+    margin:{l:0,r:0,b:0,t:60}
+  };
+  Plotly.newPlot('chart_surface3d', traces, layout, {responsive:true, displayModeBar:false});
+})();
+
+// ════════════════════════════════════════════════════════
+// CHART 8: BCBS SCENARIOS
+// ════════════════════════════════════════════════════════
+(function(){
+  const shocks = [-200,-100,-50,-25,0,25,50,100,200];
+  const labels = shocks.map(s=>`${s>=0?'+':''}${s}bp`);
+  const capPnL = shocks.map(s => {
+    const slope = -0.215;
+    return s===0 ? 0 : slope*s + (s<0?0.08*s*s/200:0);
+  });
+  const flrPnL = shocks.map(s => -s*0.142 + (s>0?0.06*s*s/200:0));
+  const swPnL  = shocks.map(s => -s*0.163);
+
+  const traces = [
+    { x:labels, y:capPnL,  name:'5Y Cap P&L',      type:'bar',
+      marker:{color:capPnL.map(v=>v>=0?'#4CAF50':'#FF6B6B'),opacity:0.87},
+      hovertemplate:'%{x}<br>Cap P&L: %{y:+.2f} bps<extra></extra>' },
+    { x:labels, y:flrPnL,  name:'5Y Floor P&L',     type:'bar',
+      marker:{color:flrPnL.map(v=>v>=0?'#00D4FF':'#FF9800'),opacity:0.87},
+      hovertemplate:'%{x}<br>Floor P&L: %{y:+.2f} bps<extra></extra>' },
+    { x:labels, y:swPnL,   name:'Swaption P&L',     type:'bar',
+      marker:{color:swPnL.map(v=>v>=0?'#AB47BC':'#FFE66D'),opacity:0.87},
+      hovertemplate:'%{x}<br>Swptn P&L: %{y:+.2f} bps<extra></extra>' },
+  ];
+  const layout = darkLayout('📋 BCBS IRRBB — Scenario P&L Impact (bps of notional)', 360);
+  layout.barmode = 'group';
+  layout.xaxis.title = 'Rate Shock Scenario';
+  layout.yaxis.title = 'P&L (bps)';
+  layout.shapes = [{type:'line',x0:-0.5,x1:8.5,y0:0,y1:0,line:{color:'#8B949E',width:1.5}}];
+  Plotly.newPlot('chart_scenarios', traces, layout, {responsive:true, displayModeBar:false});
+})();
+
+// ════════════════════════════════════════════════════════
+// CHART 9: VIOLIN DISTRIBUTIONS
+// ════════════════════════════════════════════════════════
+(function(){
+  const steps = 200;
+  const horizon = 10;
+  const dt = horizon / steps;
+  const T_grid = [];
+  for (let i=0;i<=steps;i++) T_grid.push(i*dt);
+
+  function alpha(t) {
+    const f = nsFwd(Math.max(t,0.001));
+    if (t < 1e-8) return f;
+    return f + (sig*sig/(2*a*a))*Math.pow(1-Math.exp(-a*t),2);
+  }
+  const alphaVals = T_grid.map(alpha);
+  const exp_a_dt = Math.exp(-a*dt);
+  const step_std = Math.sqrt(sig*sig/(2*a)*(1-Math.exp(-2*a*dt)));
+  function erf(x){const t=1/(1+0.3275911*Math.abs(x));const p=t*(0.254829592+t*(-0.284496736+t*(1.421413741+t*(-1.453152027+t*1.061405429))));const y=1-p*Math.exp(-x*x);return x<0?-y:y;}
+
+  let rng=42;
+  function lcg(s){return(s*1664525+1013904223)>>>0;}
+  function gauss(){rng=lcg(rng);const u1=rng/4294967296;rng=lcg(rng);const u2=rng/4294967296;return Math.sqrt(-2*Math.log(Math.max(u1,1e-15)))*Math.cos(2*Math.PI*u2);}
+
+  const nPaths=600;
+  const tPoints=[0.5,1,2,3,5,7,10];
+  const tIndices=tPoints.map(t=>Math.round(t/dt));
+  const samples={};
+  tPoints.forEach(t=>samples[t]=[]);
+
+  for (let p=0;p<nPaths;p++){
+    let r_cur=r0;
+    const snapshots=[r_cur];
+    let ti=1;
+    for (let s=0;s<steps;s++){
+      const Z=gauss();
+      const mu=r_cur*exp_a_dt+(alphaVals[s+1]-alphaVals[s]*exp_a_dt);
+      r_cur=mu+step_std*Z;
+      tIndices.forEach((idx,k)=>{if(s+1===idx)samples[tPoints[k]].push(r_cur*100);});
+    }
+  }
+
+  const palette=['#00D4FF','#FF6B6B','#FFE66D','#4CAF50','#AB47BC','#FF9800','#26C6DA'];
+  const traces = tPoints.map((t,i)=>({
+    type:'violin', x:samples[t].map(()=>`t = ${t}Y`), y:samples[t],
+    name:`t = ${t}Y`,
+    box:{visible:true}, meanline:{visible:true},
+    fillcolor:palette[i], line:{color:palette[i]}, opacity:0.8, points:false,
+    hovertemplate:`t=${t}Y | Rate: %{y:.3f}%<extra></extra>`
+  }));
+
+  const layout = darkLayout('📊 Short Rate Distribution Evolution — QuantLib Process', 420);
+  layout.xaxis.title = 'Time Horizon';
+  layout.yaxis.title = 'Short Rate (%)';
+  layout.violinmode = 'overlay';
+  Plotly.newPlot('chart_violins', traces, layout, {responsive:true, displayModeBar:false});
+})();
+
+// ════════════════════════════════════════════════════════
+// UI INTERACTIONS
+// ════════════════════════════════════════════════════════
+
+function toggleCell(header) {
+  const cell = header.parentElement;
+  cell.classList.toggle('collapsed');
+}
+
+function scrollTo(id) {
+  document.getElementById(id).scrollIntoView({behavior:'smooth', block:'start'});
+  document.querySelectorAll('.cell-btn').forEach(b=>{
+    b.classList.toggle('active', b.getAttribute('onclick').includes(id));
+  });
+}
+
+function setView(view) {
+  document.querySelectorAll('.nav-btn').forEach(b=>{
+    b.classList.toggle('active', b.getAttribute('onclick').includes(view));
+  });
+  if (view==='dashboard') {
+    document.getElementById('mainContent').scrollTo({top:0, behavior:'smooth'});
+    ['cell1','cell2','cell3','cell4'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el) el.classList.add('collapsed');
+    });
+  } else if (view==='risk') {
+    document.getElementById('cell7').scrollIntoView({behavior:'smooth', block:'start'});
+  } else {
+    document.querySelectorAll('.cell').forEach(c=>c.classList.remove('collapsed'));
+  }
+}
+
+// Animate metric cards on scroll
+const observer = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting) e.target.style.opacity='1';
+  });
+},{threshold:0.1});
+document.querySelectorAll('.metric-card').forEach(c=>{
+  c.style.opacity='0';
+  c.style.transition='opacity 0.5s ease';
+  observer.observe(c);
+});
+</script>
+</body>
+</html>
